@@ -1,0 +1,695 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Youth4Change Programme · Angels NPO Management System</title>
+<link rel="stylesheet" href="assets/styles.css">
+<script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone@7.26.4/babel.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="config.js"></script>
+<script src="assets/db.js"></script>
+</head>
+<body>
+<div id="root"><p style="padding:24px">Loading Youth4Change…</p></div>
+<script type="text/babel" data-presets="react">
+const { useState, useEffect, useMemo, useRef } = React;
+
+// ===================================================================
+// Programme rules (from the Y4C briefing, scoretracker and rubric)
+// ===================================================================
+const TOWNS = ['Kenhardt', 'Groblershoop', 'Gariep', 'Grootdrink', 'Topline', 'Wegdraai', 'Boegoeberg', 'Opwag'];
+const MODULES = ['Soft Skills Mastery', 'Career Development', 'Jobs of the Future (Drones)', 'Intro to Electronics & RE', 'Entrepreneur Bootcamp', 'Sport4Change'];
+// Default workshop per day (editable per day on the Daily scoresheet)
+const DAY_MOD = ['Career Development', 'Career Development', 'Soft Skills Mastery', 'Soft Skills Mastery', 'Soft Skills Mastery',
+  'Jobs of the Future (Drones)', 'Jobs of the Future (Drones)', 'Jobs of the Future (Drones)', 'Intro to Electronics & RE', 'Intro to Electronics & RE',
+  'Entrepreneur Bootcamp', 'Entrepreneur Bootcamp', 'Entrepreneur Bootcamp', 'Entrepreneur Bootcamp', 'Sport4Change'];
+const WEEKS = ['Careers & Soft Skills', 'Jobs of the Future: Tech', 'Entrepreneurship & Sport + Mini Expo'];
+const LIC = [[0, 'Not started (0)'], [5, 'Booked / studying (5)'], [10, "Learner's passed (10)"], [12, 'Test booked / lessons in progress (12)'], [15, "Driver's licence obtained (15)"]];
+const BONUS = [['bonus_pitch', 'Pitch deck winner'], ['bonus_business', 'Starting a micro-business'], ['bonus_peers', 'Helping peers complete activities'], ['bonus_job', 'Applying for a job or bursary']];
+const RUBRIC = [
+  [5, 'Exceptional', 'Consistently proactive and adds value', 'Always volunteers, asks insightful questions · helps others unasked · leads group tasks · high focus'],
+  [4, 'Strong', 'Regularly engaged and positive', 'Contributes when prompted · active in discussions · ready to learn · works well with peers'],
+  [3, 'Adequate / expected standard', 'Participates at an acceptable level', 'Responds when asked · completes tasks · cooperative but not proactive'],
+  [2, 'Passive / minimal engagement', 'Rarely participates unless heavily prompted', 'Quiet, withdrawn · only when called on · low-effort contributions'],
+  [1, 'Disengaged', 'Present but not meaningfully engaged', 'On phone / distracted · avoids tasks · no interaction'],
+  [0, 'Disruptive / non-participation', 'No constructive contribution or negative influence', 'Disrupts, argues · refuses to participate · leaves early']];
+const QUALS = ['Grade 10', 'Grade 11', 'Grade 12 / Matric', 'Diploma / Certificate', 'Degree', 'Other'];
+// DRAFT selection weights — confirm with programme management
+const QUAL_PTS = { 'Grade 10': 8, 'Grade 11': 12, 'Grade 12 / Matric': 20, 'Diploma / Certificate': 20, 'Degree': 20, 'Other': 8 };
+const PREP = [
+  ['form', 'Application form & QR code live (with Ts & Cs)', -62, -56, 'Must be complete 8 weeks before the start date'],
+  ['design', 'Design work for print & social media', -56, -52, 'Update the designs for this cohort'],
+  ['print', 'Printing', -49, -38, 'Check when ZipPrint closes; transport with the Angels team or courier'],
+  ['rfq', 'RFQs issued & advertised (catering, transport)', -35, -35, 'Prep the post on the RFQ system (earlier over year end)'],
+  ['sm', 'Social media advertising starts', -35, -35, '5 weeks before the start date (add 2 weeks over Christmas)'],
+  ['close', 'Applications close', -7, -7, '1 week before the start date'],
+  ['select', 'Selections done & candidates advised', -7, -1, 'Advise candidates via the WhatsApp group'],
+  ['onboard', 'Onboard participants into the system', 0, 0, 'First day of workshop week 1']];
+const DELIV = ['Recruitment call (QR form) via LIMA, loveLife, municipality', 'Workshop week 1', 'Workshop week 2', 'Workshop week 3', 'Monthly assignments ×3 presented',
+  'Mini career expo (SEDFA, EW-Seta, TVET)', 'Mini entrepreneurship bootcamp', 'Sport4Change + soccer match (final day)', 'Monthly stipends paid ×3',
+  'Certificates & end-of-programme celebration (November)', 'Camp winners selected for Soetwater (November)', 'Youth feedback forms collected', 'Quarterly scorecard reviewed with Scatec'];
+
+// ===================================================================
+// Helpers
+// ===================================================================
+const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const D = (s) => { if (!s) return null; const p = s.slice(0, 10).split('-'); return new Date(+p[0], +p[1] - 1, +p[2]); };
+const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+const fmt = (d) => d ? d.getDate() + ' ' + MON[d.getMonth()] + ' ' + d.getFullYear() : '—';
+const fmtR = (a, b) => a.getMonth() === b.getMonth() ? a.getDate() + '–' + fmt(b) : a.getDate() + ' ' + MON[a.getMonth()] + ' – ' + fmt(b);
+const wk = (s) => s ? fmtR(D(s), addDays(D(s), 4)) : '—';
+const intakeName = (i) => i ? `Year ${i.programme_year} · ${i.cohort} ${i.cal_year} · ${i.town}` : '';
+const mask = (id) => id ? id.slice(0, 6) + ' •••• •••' : '';
+const avg = (xs) => xs.length ? (xs.reduce((a, b) => a + b, 0) / xs.length) : 0;
+function csvDownload(name, rows) {
+  const esc = (v) => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+  const text = rows.map((r) => r.map(esc).join(',')).join('\r\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob(['﻿' + text], { type: 'text/csv' }));
+  a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+
+function gates(a) {
+  return [
+    ['Age 18 – 35', a.age >= 18 && a.age <= 35, 'Outside 18 – 35'],
+    ['Lives in the host town', !!a.town, 'Town missing'],
+    ['Available for all workshop weeks', !!a.criteria_understood, 'Criteria not confirmed'],
+    ['ID copy uploaded', !!a.id_file_path, 'No ID copy'],
+    ['Proof of address (no affidavit)', !!a.poa_file_path && a.doc_status !== 'Rejected', 'Proof of address rejected'],
+    ['Declaration & POPIA consent', !!(a.decl_true && a.decl_consent), 'Declaration not signed'],
+    ['Not a previous participant', !a.previous_participant, 'Took part before (Year 2 rule)']];
+}
+function appScore(a) {
+  const g = gates(a), eligible = g.every((x) => x[1]);
+  const emp = a.employed === 'No' ? 30 : 0, q = QUAL_PTS[a.qualification] || 0;
+  const m = (a.panel_motivation || 0) * 6, iv = (a.panel_interview || 0) * 4;
+  const panelDone = a.panel_motivation != null && a.panel_interview != null, total = emp + q + m + iv;
+  const band = !eligible ? 'Not eligible' : !panelDone ? 'Awaiting panel' : total >= 70 ? 'Recommend' : total >= 50 ? 'Reserve' : 'Not recommended';
+  return { g, eligible, emp, q, m, iv, total, panelDone, band };
+}
+const statusCls = { New: 'badge b-new', Screened: 'badge', Shortlisted: 'badge b-ok', Selected: 'badge b-teal', Reserve: 'badge b-warn', 'Not successful': 'badge b-bad' };
+const docCls = { Verified: 'badge b-ok', Rejected: 'badge b-bad', Pending: 'badge b-warn' };
+
+// ===================================================================
+// Small UI pieces
+// ===================================================================
+function Rate({ value, onPick, max = 5, min = 0, small, label }) {
+  const xs = []; for (let n = min; n <= max; n++) xs.push(n);
+  return <div role="group" aria-label={label} style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+    {xs.map((n) => <button key={n} type="button" className={'rate' + (small ? ' sm' : '') + (value === n ? ' on' : '')} aria-pressed={value === n} onClick={() => onPick(n)}>{n}</button>)}
+  </div>;
+}
+function Kpi({ label, value, sub }) {
+  return <div className="card" style={{ padding: '16px 18px' }}>
+    <div style={{ fontSize: 13, color: '#4A5A5E', fontWeight: 600 }}>{label}</div>
+    <div className="h" style={{ fontSize: 30, fontWeight: 700, color: '#12343B', lineHeight: 1.15 }}>{value}</div>
+    <div style={{ fontSize: 13, color: '#4A5A5E' }}>{sub}</div>
+  </div>;
+}
+function Bars({ title, rows }) {
+  const max = Math.max(1, ...rows.map((r) => r[1]));
+  return <section className="card" style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 12 }}>
+    <h3 className="h" style={{ margin: 0, fontSize: 16 }}>{title}</h3>
+    {rows.map((r) => <div key={r[0]} style={{ display: 'grid', gridTemplateColumns: '140px 1fr 32px', gap: 10, alignItems: 'center', fontSize: 14 }}>
+      <span style={{ color: '#33464A' }}>{r[0]}</span>
+      <div style={{ height: 12, background: '#EEF2F1', borderRadius: 6, overflow: 'hidden' }}><div style={{ height: 12, background: '#0F766E', borderRadius: 6, width: (r[1] / max * 100) + '%' }} /></div>
+      <span style={{ textAlign: 'right', fontWeight: 600 }}>{r[1]}</span>
+    </div>)}
+  </section>;
+}
+function QR({ text, fileName }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!ref.current || !window.QRCode) return;
+    ref.current.innerHTML = '';
+    new window.QRCode(ref.current, { text, width: 480, height: 480, correctLevel: window.QRCode.CorrectLevel.M });
+  }, [text]);
+  const download = () => {
+    const c = ref.current && ref.current.querySelector('canvas');
+    const a = document.createElement('a'); a.href = c ? c.toDataURL('image/png') : ref.current.querySelector('img').src; a.download = fileName; a.click();
+  };
+  return <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-start' }}>
+    <div className="qr" ref={ref} role="img" aria-label={'QR code for ' + text}>{!window.QRCode && 'QR library did not load'}</div>
+    <button type="button" className="btn sm" onClick={download}>Download QR (PNG)</button>
+  </div>;
+}
+function ShareBox({ title, intro, url, fileName, whatsapp }) {
+  const [copied, setCopied] = useState(false);
+  const copy = () => { navigator.clipboard && navigator.clipboard.writeText(url); setCopied(true); setTimeout(() => setCopied(false), 1500); };
+  return <div className="card" style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 12 }}>
+    <h3 className="h" style={{ margin: 0, fontSize: 17 }}>{title}</h3>
+    <p style={{ margin: 0, fontSize: 14, color: '#33464A' }}>{intro}</p>
+    <label className="lbl" style={{ margin: 0 }} htmlFor={fileName}>Public link</label>
+    <input id={fileName} className="inp" readOnly value={url} onFocus={(e) => e.target.select()} />
+    <QR text={url} fileName={fileName + '.png'} />
+    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+      {whatsapp && <a className="btn sm p" href={'https://wa.me/?text=' + encodeURIComponent(whatsapp + ' ' + url)} target="_blank" rel="noopener">Send via WhatsApp</a>}
+      <button type="button" className="btn sm" onClick={copy}>{copied ? 'Copied' : 'Copy link'}</button>
+      <a className="btn sm" href={url} target="_blank" rel="noopener">Open form</a>
+    </div>
+  </div>;
+}
+
+// ===================================================================
+// Login (live mode only)
+// ===================================================================
+function Login({ onDone, msg }) {
+  const [email, setEmail] = useState(''), [pw, setPw] = useState(''), [err, setErr] = useState(msg || ''), [busy, setBusy] = useState(false);
+  const go = async (e) => { e.preventDefault(); setBusy(true); setErr(''); try { await Y4C.signIn(email, pw); onDone(); } catch (x) { setErr(x.message); } setBusy(false); };
+  return <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+    <form className="card" onSubmit={go} style={{ padding: 28, width: 380, maxWidth: '100%', display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div><div style={{ fontSize: 13, color: '#4A5A5E' }}>Angels Resource Centres · NPO Management System</div><h1 className="h" style={{ margin: '4px 0 0', fontSize: 24 }}>Youth4Change Programme</h1></div>
+      <div><label className="lbl" htmlFor="em">Email</label><input id="em" className="inp" type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} /></div>
+      <div><label className="lbl" htmlFor="pw">Password</label><input id="pw" className="inp" type="password" autoComplete="current-password" value={pw} onChange={(e) => setPw(e.target.value)} /></div>
+      {err && <div className="notice n-bad">{err}</div>}
+      <button className="btn p" disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}</button>
+    </form>
+  </div>;
+}
+
+// ===================================================================
+// Main app
+// ===================================================================
+function App() {
+  const [auth, setAuth] = useState({ checked: false, ok: false, msg: '' });
+  const [intakes, setIntakes] = useState([]);
+  const [intakeId, setIntakeId] = useState(null);
+  const [tab, setTab] = useState('overview');
+  const [data, setData] = useState(null);
+  const [toast, setToast] = useState('');
+  const [err, setErr] = useState('');
+
+  const checkAuth = async () => {
+    try {
+      const u = await Y4C.getUser();
+      if (!u) return setAuth({ checked: true, ok: false, msg: '' });
+      const staff = await Y4C.isStaff();
+      setAuth({ checked: true, ok: staff, msg: staff ? '' : 'Your account is not on the Youth4Change staff list yet. Ask the system administrator to add you.' });
+    } catch (e) { setAuth({ checked: true, ok: false, msg: e.message }); }
+  };
+  useEffect(() => { checkAuth(); }, []);
+
+  const loadIntakes = async () => {
+    const list = await Y4C.intakes(); setIntakes(list);
+    if (!intakeId) { const pick = list.find((i) => i.status === 'recruiting') || list.find((i) => i.status === 'running') || list[list.length - 1]; if (pick) setIntakeId(pick.id); }
+  };
+  useEffect(() => { if (auth.ok) loadIntakes().catch((e) => setErr(e.message)); }, [auth.ok]);
+
+  const loadData = async (id = intakeId) => {
+    if (!id) return;
+    const [apps, parts, sessions, feedback, checklist] = await Promise.all([Y4C.applications(id), Y4C.participants(id), Y4C.sessions(id), Y4C.feedback(id), Y4C.checklist(id)]);
+    const scores = await Y4C.scores(sessions.map((s) => s.id));
+    setData({ apps, parts, sessions, scores, feedback, checklist });
+  };
+  useEffect(() => { setData(null); setToast(''); if (intakeId) loadData(intakeId).catch((e) => setErr(e.message)); }, [intakeId]);
+
+  const run = async (fn, msg) => { try { await fn(); await loadData(); if (msg) setToast(msg); } catch (e) { setErr(e.message); } };
+
+  if (!auth.checked) return <p style={{ padding: 24 }}>Checking sign-in…</p>;
+  if (!auth.ok) return <Login msg={auth.msg} onDone={checkAuth} />;
+  const intake = intakes.find((i) => i.id === intakeId);
+  const TABS = [['overview', 'Overview & KPIs'], ['recruit', 'Recruitment'], ['daily', 'Daily scoresheet'], ['tracker', 'Scoretracker'], ['feedback', 'Feedback']];
+
+  return <div style={{ maxWidth: 1440, margin: '0 auto', padding: '20px 24px 48px', display: 'flex', flexDirection: 'column', gap: 18 }}>
+    <header style={{ display: 'flex', flexWrap: 'wrap', gap: 16, alignItems: 'flex-end', justifyContent: 'space-between' }}>
+      <div>
+        <div style={{ fontSize: 13, color: '#4A5A5E' }}>Programmes / Scatec / Youth4Change</div>
+        <h1 className="h" style={{ margin: '4px 0 6px', fontSize: 30, color: '#12343B' }}>Youth4Change Programme</h1>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <span className="badge b-teal">24-month impact model · 160 youth</span>
+          {Y4C.mode === 'demo' && <span className="badge b-warn">Demo mode — sample data in this browser</span>}
+        </div>
+      </div>
+      <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+        <div><label className="lbl" htmlFor="intake" style={{ fontSize: 12, color: '#4A5A5E' }}>Cohort</label>
+          <select id="intake" className="inp" style={{ width: 300 }} value={intakeId || ''} onChange={(e) => setIntakeId(e.target.value)}>
+            {intakes.map((i) => <option key={i.id} value={i.id}>{intakeName(i)} ({i.status})</option>)}
+          </select></div>
+        {Y4C.mode === 'demo'
+          ? <button className="btn sm noprint" onClick={() => { Y4C.resetDemo(); location.reload(); }}>Reset demo data</button>
+          : <button className="btn sm noprint" onClick={async () => { await Y4C.signOut(); location.reload(); }}>Sign out</button>}
+      </div>
+    </header>
+
+    <div role="tablist" style={{ display: 'flex', flexWrap: 'wrap', gap: 4, borderBottom: '1px solid #DDE3E1' }}>
+      {TABS.map((t, k) => <button key={t[0]} role="tab" aria-selected={tab === t[0]} className={'tab' + (tab === t[0] ? ' on' : '')} onClick={() => setTab(t[0])}>{k + 1}. {t[1]}</button>)}
+    </div>
+    {toast && <div role="status" className="notice n-ok" style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}><strong>{toast}</strong><button className="btn sm" onClick={() => setToast('')}>Dismiss</button></div>}
+    {err && <div role="alert" className="notice n-bad" style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}><span>{err}</span><button className="btn sm" onClick={() => setErr('')}>Dismiss</button></div>}
+
+    {!intake || !data ? <p>Loading cohort…</p> : <>
+      {tab === 'overview' && <Overview intake={intake} intakes={intakes} data={data} run={run} reloadIntakes={loadIntakes} />}
+      {tab === 'recruit' && <Recruitment intake={intake} data={data} run={run} setErr={setErr} />}
+      {tab === 'daily' && <Daily intake={intake} data={data} setData={setData} setErr={setErr} />}
+      {tab === 'tracker' && <Tracker intake={intake} data={data} run={run} />}
+      {tab === 'feedback' && <Feedback intake={intake} data={data} />}
+    </>}
+  </div>;
+}
+
+// ===================================================================
+// Shared calculations for a cohort
+// ===================================================================
+function useTracker(intake, data) {
+  return useMemo(() => {
+    const sess = data.sessions, byKey = {};
+    data.scores.forEach((s) => { byKey[s.session_id + '|' + s.participant_id] = s; });
+    const rows = data.parts.map((p) => {
+      let att = 0, rub = 0, run = 0, maxRun = 0, held = 0;
+      const modHeld = {}, modAtt = {};
+      sess.forEach((s) => {
+        const r = byKey[s.id + '|' + p.id]; if (!r || r.present == null) return;
+        held++; const m = s.module; modHeld[m] = (modHeld[m] || 0) + 1;
+        if (r.present) { att++; rub += r.score || 0; run = 0; modAtt[m] = (modAtt[m] || 0) + 1; } else { run++; maxRun = Math.max(maxRun, run); }
+      });
+      const modRows = MODULES.map((m) => ({ m, held: modHeld[m] || 0, pts: modHeld[m] ? Math.round(5 * (modAtt[m] || 0) / modHeld[m]) : 0, pct: modHeld[m] ? Math.round(100 * (modAtt[m] || 0) / modHeld[m]) : 0 }));
+      const mods = modRows.reduce((a, r) => a + r.pts, 0);
+      const cond = (p.conduct_behaviour || 0) + (p.conduct_teamwork || 0);
+      const bonus = BONUS.filter((b) => p[b[0]]).length * 5;
+      const total = att + rub + p.punctuality + mods + p.licence_points + cond + bonus;
+      return { p, att, rub, held, maxRun, modRows, mods, cond, bonus, total, exited: p.intervention === 'Exited' };
+    });
+    rows.sort((a, b) => (a.exited - b.exited) || (b.total - a.total));
+    rows.forEach((r, k) => {
+      r.rank = r.exited ? '—' : k + 1;
+      r.flag = r.exited ? ['Exited', 'badge b-bad'] : r.maxRun > 2 ? ['At risk', 'badge b-bad'] : r.maxRun === 2 ? ['Watch', 'badge b-warn']
+        : r.p.camp_selected ? ['Camp: selected', 'badge b-ok'] : k < (intake.camp_places || 10) ? ['Camp: suggested', 'badge b-teal'] : ['On track', 'badge'];
+    });
+    let sessions = 0, present = 0, rubSum = 0;
+    rows.forEach((r) => { sessions += r.held; present += r.att; rubSum += r.rub; });
+    const daysDone = sess.filter((s) => data.scores.some((x) => x.session_id === s.id && x.present != null)).length;
+    return { rows, attRate: sessions ? Math.round(100 * present / sessions) : 0, avgPart: present ? (rubSum / present).toFixed(1) : '—', daysDone };
+  }, [intake, data]);
+}
+
+// ===================================================================
+// 1. Overview & KPIs
+// ===================================================================
+function Overview({ intake, intakes, data, run, reloadIntakes }) {
+  const yearList = intakes.filter((i) => i.cal_year === intake.cal_year && i.week1_start).sort((a, b) => a.week1_start.localeCompare(b.week1_start));
+  const tr = useTracker(intake, data);
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const done = (list, key) => !!(data.checklist.find((c) => c.list === list && c.item_key === key) || {}).done;
+  const toggle = (list, key) => run(() => Y4C.setChecklist(intake.id, list, key, !done(list, key)));
+  const S = D(intake.week1_start);
+  const eligible = data.apps.filter((a) => appScore(a).eligible).length;
+  const fbAvg = data.feedback.length ? avg(data.feedback.map((f) => f.rating_content || 0)).toFixed(1) : '—';
+  const saveIntake = (patch) => run(async () => { await Y4C.updateIntake(intake.id, patch); await reloadIntakes(); }, 'Cohort settings saved');
+
+  return <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+    <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))' }}>
+      <Kpi label="Youth over 24 months" value="160" sub="Year 1: 80 · Year 2: 80" />
+      <Kpi label="Youth per cohort" value={intake.places} sub="4 cohorts per year" />
+      <Kpi label="Impact towns" value="8" sub={TOWNS.join(', ')} />
+      <Kpi label="Soetwater Youth Camp" value={intake.camp_places} sub="Places from this cohort · selected in November" />
+      <Kpi label="Programme days" value="15" sub="3 workshop weeks · 09h00–16h00" />
+    </div>
+
+    {yearList.length > 0 && <section className="card" style={{ padding: 22, display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div><h2 className="h" style={{ margin: 0, fontSize: 20 }}>{intake.cal_year} programme schedule</h2>
+        <p style={{ margin: '6px 0 0', fontSize: 14, color: '#33464A' }}>Programme quarters, not calendar quarters — the year is built around the Soetwater camp in early December. Same towns each year; only new participants are selected.</p></div>
+      <div className="tbl"><table>
+        <thead><tr><th>Cohort</th><th>Host town</th><th>Wk 1 · {WEEKS[0]}</th><th>Wk 2 · {WEEKS[1]}</th><th>Wk 3 · {WEEKS[2]}</th><th>Applications close</th><th>Intern</th><th>Status</th></tr></thead>
+        <tbody>{yearList.map((i) => <tr key={i.id} className={i.id === intake.id ? 'sel' : ''}>
+          <td style={{ fontWeight: 700 }}>{i.cohort}</td><td>{i.town}</td><td>{wk(i.week1_start)}</td><td>{wk(i.week2_start)}</td><td>{wk(i.week3_start)}</td>
+          <td>{fmt(D(i.applications_close))}</td><td>{i.intern || '—'}</td><td><span className="badge">{i.status}</span></td></tr>)}</tbody>
+      </table></div>
+      <div style={{ overflowX: 'auto' }}><div style={{ minWidth: 760, display: 'grid', gridTemplateColumns: 'repeat(12, minmax(0, 1fr))', gap: '4px 2px', fontSize: 12 }}>
+        {MON.map((m) => <div key={m} style={{ textAlign: 'center', color: '#4A5A5E', fontWeight: 600, paddingBottom: 4, borderBottom: '1px solid #DDE3E1' }}>{m}</div>)}
+        {yearList.map((i, k) => { const a = D(i.week1_start), b = addDays(D(i.week3_start), 4);
+          return <div key={i.id} title={i.town} style={{ gridColumn: (a.getMonth() + 1) + ' / ' + (b.getMonth() + 2), gridRow: 2 + (k % 2), background: '#0F766E', color: '#fff', borderRadius: 6, padding: '6px 8px', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{i.cohort} · {i.town}</div>; })}
+        <div style={{ gridColumn: '11 / 12', gridRow: 2, background: '#FDEBD3', color: '#8A3B06', borderRadius: 6, padding: '6px 8px', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden' }}>Winners &amp; EoP</div>
+        <div style={{ gridColumn: '12 / 13', gridRow: 2, background: '#12343B', color: '#fff', borderRadius: 6, padding: '6px 8px', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden' }}>Soetwater</div>
+      </div></div>
+    </section>}
+
+    <div className="row">
+      <section className="card grow" style={{ padding: 22, display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <h2 className="h" style={{ margin: 0, fontSize: 19 }}>Preparation timeline · {intake.town} {intake.cohort} {intake.cal_year}</h2>
+        {!S ? <p className="hint">Add the week 1 start date in the cohort settings to work out the timeline.</p> :
+          <ol style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {PREP.map((t) => { const a = addDays(S, t[2]), b = addDays(S, t[3]), isDone = done('prep', t[0]);
+              const st = isDone ? ['Done', 'badge b-ok'] : today > b ? ['Overdue', 'badge b-bad'] : today >= a ? ['Due now', 'badge b-warn'] : (a - today) / 864e5 <= 14 ? ['Next', 'badge b-new'] : ['Upcoming', 'badge'];
+              return <li key={t[0]} style={{ display: 'grid', gridTemplateColumns: '28px minmax(0,1fr) 180px 90px', gap: 12, alignItems: 'center', border: '1px solid #DDE3E1', borderRadius: 10, padding: '10px 14px' }}>
+                <input type="checkbox" className="chk" aria-label={'Done: ' + t[1]} checked={isDone} onChange={() => toggle('prep', t[0])} />
+                <div><div style={{ fontWeight: 600, fontSize: 14 }}>{t[1]}</div><div style={{ fontSize: 13, color: '#4A5A5E' }}>{t[4]}</div></div>
+                <div style={{ fontSize: 14 }}>{t[2] === t[3] ? fmt(a) : fmtR(a, b)}</div><span className={st[1]}>{st[0]}</span></li>; })}
+          </ol>}
+      </section>
+      <section className="card side" style={{ padding: 22, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <h2 className="h" style={{ margin: 0, fontSize: 18 }}>Cohort deliverables</h2>
+        <p className="hint" style={{ margin: 0 }}>{DELIV.filter((d, k) => done('deliverable', 'd' + k)).length} of {DELIV.length} done</p>
+        {DELIV.map((d, k) => <label key={k} style={{ display: 'flex', gap: 10, alignItems: 'center', minHeight: 34, fontSize: 14, cursor: 'pointer' }}>
+          <input type="checkbox" className="chk" checked={done('deliverable', 'd' + k)} onChange={() => toggle('deliverable', 'd' + k)} />{d}</label>)}
+      </section>
+    </div>
+
+    <div className="row">
+      <section className="card grow" style={{ padding: 22, display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <h2 className="h" style={{ margin: 0, fontSize: 19 }}>M&amp;E tracking — quarterly scorecard</h2>
+        <div className="tbl"><table><thead><tr><th>Tracking metric</th><th>Result</th><th>Source</th></tr></thead><tbody>
+          {[['Applicants', data.apps.length + ' received · ' + eligible + ' eligible', 'Recruitment'],
+            ['Participants', data.parts.filter((p) => p.intervention !== 'Exited').length + ' active of ' + intake.places + ' places', 'Scoretracker'],
+            ['Attendance rate', tr.attRate + '%', 'Daily scoresheets'],
+            ['Participation rate', tr.avgPart + ' / 5 average', 'Facilitator rubric'],
+            ['Skills development progress', 'Workshop completion per learner', 'Scoretracker'],
+            ["Driver's licences obtained", data.parts.filter((p) => p.licence_points === 15).length, 'Scoretracker'],
+            ['Placed in jobs, internships or enterprises', data.parts.filter((p) => p.bonus_job || p.bonus_business).length + ' applied for a job/bursary or started a business', 'Scoretracker bonus'],
+            ['Youth feedback', data.feedback.length + ' responses · content ' + fbAvg + ' / 10', 'Feedback']
+          ].map((m) => <tr key={m[0]}><td style={{ fontWeight: 600 }}>{m[0]}</td><td>{m[1]}</td><td style={{ color: '#4A5A5E', fontSize: 13 }}>{m[2]}</td></tr>)}
+        </tbody></table></div>
+      </section>
+      <section className="card side" style={{ padding: 22, display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <h2 className="h" style={{ margin: 0, fontSize: 18 }}>Cohort settings</h2>
+        <div><label className="lbl" htmlFor="st">Status</label><select id="st" className="inp" value={intake.status} onChange={(e) => saveIntake({ status: e.target.value })}>
+          {['planning', 'recruiting', 'running', 'completed'].map((s) => <option key={s} value={s}>{s}</option>)}</select>
+          <div className="hint">The application form only accepts entries while the status is "recruiting".</div></div>
+        {[['week1_start', 'Week 1 start'], ['week2_start', 'Week 2 start'], ['week3_start', 'Week 3 start'], ['applications_close', 'Applications close']].map((f) =>
+          <div key={f[0]}><label className="lbl" htmlFor={f[0]}>{f[1]}</label><input id={f[0]} type="date" className="inp" defaultValue={intake[f[0]] || ''} key={intake.id + f[0]} onBlur={(e) => e.target.value !== (intake[f[0]] || '') && saveIntake({ [f[0]]: e.target.value || null })} /></div>)}
+      </section>
+    </div>
+  </div>;
+}
+
+// ===================================================================
+// 2. Recruitment
+// ===================================================================
+function Recruitment({ intake, data, run, setErr }) {
+  const [view, setView] = useState('store');
+  const [filter, setFilter] = useState('All'), [q, setQ] = useState('');
+  const [selId, setSelId] = useState(null), [reveal, setReveal] = useState(false), [docMsg, setDocMsg] = useState('');
+  const apps = data.apps.map((a) => Object.assign({}, a, { s: appScore(a) }));
+  const sel = apps.find((a) => a.id === selId) || apps[0];
+  const upd = (a, patch, msg) => run(() => Y4C.updateApplication(a.id, patch), msg);
+  const isPart = (a) => data.parts.some((p) => p.application_id === a.id);
+  const FIL = { All: () => true, New: (a) => a.status === 'New', Shortlisted: (a) => a.status === 'Shortlisted', Selected: (a) => a.status === 'Selected', Reserve: (a) => a.status === 'Reserve', 'Not eligible': (a) => !a.s.eligible };
+  const rows = apps.filter(FIL[filter]).filter((a) => !q || (a.full_name + ' ' + a.ref).toLowerCase().includes(q.toLowerCase()));
+  const openDoc = async (path) => { setDocMsg(''); try { const u = await Y4C.docUrl(path); if (u) window.open(u, '_blank', 'noopener'); else setDocMsg('Demo mode: uploaded files are not stored. In live mode the document opens here.'); } catch (e) { setErr(e.message); } };
+  const accept = (a) => run(async () => { await Y4C.addParticipant({ intake_id: intake.id, application_id: a.id, full_name: a.full_name, id_number: a.id_number, phone: a.phone }); await Y4C.updateApplication(a.id, { status: 'Selected' }); }, a.full_name + ' added to the cohort');
+  const exportCsv = () => csvDownload('Y4C_applications_' + intake.town + '_' + intake.cohort + intake.cal_year + '.csv',
+    [['Reference', 'Name', 'Age', 'Gender', 'Phone', 'Email', 'Qualification', 'Employed', 'Documents', 'Eligible', 'Score', 'Band', 'Status', 'Submitted']]
+      .concat(apps.map((a) => [a.ref, a.full_name, a.age, a.gender, a.phone, a.email, a.qualification, a.employed, a.doc_status, a.s.eligible ? 'Yes' : 'No', a.s.total, a.s.band, a.status, (a.created_at || '').slice(0, 10)])));
+  const shareUrl = Y4C.baseUrl() + 'apply.html?intake=' + intake.id;
+
+  return <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <div role="group" aria-label="Recruitment views" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+      {[['store', 'Applications store'], ['select', 'Selection scoresheet'], ['data', 'Recruitment data'], ['share', 'Application form & QR']].map((v) =>
+        <button key={v[0]} className={'pill' + (view === v[0] ? ' on' : '')} aria-pressed={view === v[0]} onClick={() => setView(v[0])}>{v[1]}</button>)}
+    </div>
+
+    {view === 'share' && <div className="row">
+      <div className="grow"><ShareBox title="Share the application form" fileName={'Y4C_apply_' + intake.town + '_' + intake.cohort + intake.cal_year}
+        intro="Put this QR code on the flyers and posters. Applicants open it on their phone — no login needed — and submissions land straight in the Applications store." url={shareUrl} /></div>
+      <div className="card side" style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 8, fontSize: 14 }}>
+        <h3 className="h" style={{ margin: 0, fontSize: 17 }}>Before it goes live</h3>
+        <div>Status: <span className="badge">{intake.status}</span> {intake.status !== 'recruiting' && <span className="hint">— set it to "recruiting" on the Overview tab to open the form.</span>}</div>
+        <div>Applications close: <strong>{fmt(D(intake.applications_close))}</strong></div>
+        <div>Terms &amp; Conditions page: <a href="terms.html" target="_blank" rel="noopener">check it has the approved text</a></div>
+      </div>
+    </div>}
+
+    {view === 'data' && <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>
+        <Kpi label="Applications received" value={apps.length} sub={intakeName(intake)} />
+        <Kpi label="Meet entry requirements" value={apps.filter((a) => a.s.eligible).length} sub="All gates passed" />
+        <Kpi label="Unemployed" value={(apps.length ? Math.round(100 * apps.filter((a) => a.employed === 'No').length / apps.length) : 0) + '%'} sub="Preferred" />
+        <Kpi label="Documents to verify" value={apps.filter((a) => a.doc_status === 'Pending').length} sub="Pending check" />
+        <Kpi label="Selected" value={apps.filter((a) => a.status === 'Selected').length + ' / ' + intake.places} sub="Places filled" />
+      </div>
+      <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 16 }}>
+        <Bars title="Gender" rows={['Female', 'Male', 'Prefer not to say'].map((g) => [g, apps.filter((a) => a.gender === g).length])} />
+        <Bars title="Age band" rows={[['18 – 20', 18, 20], ['21 – 25', 21, 25], ['26 – 30', 26, 30], ['31 – 35', 31, 35], ['Outside 18 – 35', -1, -1]].map((b) => [b[0], apps.filter((a) => b[1] < 0 ? (a.age < 18 || a.age > 35) : (a.age >= b[1] && a.age <= b[2])).length])} />
+        <Bars title="Highest qualification" rows={QUALS.map((x) => [x, apps.filter((a) => a.qualification === x).length])} />
+        <Bars title="Status" rows={Object.keys(statusCls).map((x) => [x, apps.filter((a) => a.status === x).length])} />
+      </div>
+    </div>}
+
+    {view === 'store' && <div className="row">
+      <section className="card grow" style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{Object.keys(FIL).map((f) => <button key={f} className={'pill sm' + (filter === f ? ' on' : '')} aria-pressed={filter === f} onClick={() => setFilter(f)}>{f} ({apps.filter(FIL[f]).length})</button>)}</div>
+          <div style={{ display: 'flex', gap: 8 }}><label className="sr" htmlFor="srch">Search</label><input id="srch" className="inp" style={{ width: 220 }} placeholder="Search name or reference" value={q} onChange={(e) => setQ(e.target.value)} />
+            <button className="btn sm" onClick={exportCsv}>Export CSV</button></div>
+        </div>
+        <div className="tbl"><table><thead><tr><th>Reference</th><th>Applicant</th><th>Age</th><th>Gender</th><th>Qualification</th><th>Employed</th><th>Documents</th><th>Eligibility</th><th>Status</th></tr></thead>
+          <tbody>{rows.map((a) => <tr key={a.id} className={sel && a.id === sel.id ? 'sel' : ''}>
+            <td style={{ whiteSpace: 'nowrap' }}>{a.ref}</td><td style={{ whiteSpace: 'nowrap' }}><button className="linkbtn" onClick={() => { setSelId(a.id); setReveal(false); setDocMsg(''); }}>{a.full_name}</button></td>
+            <td>{a.age}</td><td>{a.gender}</td><td>{a.qualification}</td><td>{a.employed}</td><td><span className={docCls[a.doc_status]}>{a.doc_status}</span></td>
+            <td><span className={a.s.eligible ? 'badge b-ok' : 'badge b-bad'}>{a.s.eligible ? 'Eligible' : 'Not eligible'}</span></td><td><span className={statusCls[a.status]}>{a.status}</span></td></tr>)}</tbody></table></div>
+        {!rows.length && <p className="hint">No applications match.</p>}
+      </section>
+      {sel && <aside className="card side" style={{ overflow: 'hidden' }}>
+        <div style={{ padding: 20, background: '#F7F9F8', borderBottom: '1px solid #DDE3E1' }}>
+          <div style={{ fontSize: 13, color: '#4A5A5E' }}>{sel.ref} · submitted {fmt(D(sel.created_at))}</div>
+          <h3 className="h" style={{ margin: '4px 0 6px', fontSize: 21 }}>{sel.full_name}</h3>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}><span className={statusCls[sel.status]}>{sel.status}</span><span className={sel.s.eligible ? 'badge b-ok' : 'badge b-bad'}>{sel.s.eligible ? 'Eligible' : 'Not eligible'}</span>{sel.previous_participant && <span className="badge b-bad">Previous participant</span>}</div>
+        </div>
+        <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '8px 14px', fontSize: 14 }}>
+            <span style={{ color: '#4A5A5E' }}>ID number</span><span>{reveal ? sel.id_number : mask(sel.id_number)} <button className="linkbtn" style={{ fontSize: 13 }} onClick={() => setReveal(!reveal)}>{reveal ? 'Hide' : 'Show'}</button></span>
+            <span style={{ color: '#4A5A5E' }}>Age / gender</span><span>{sel.age} · {sel.gender}</span>
+            <span style={{ color: '#4A5A5E' }}>Contact</span><span>{sel.phone}</span>
+            <span style={{ color: '#4A5A5E' }}>Email</span><span style={{ wordBreak: 'break-all' }}>{sel.email}</span>
+            <span style={{ color: '#4A5A5E' }}>Location</span><span>{sel.town}, {sel.municipality}</span>
+            <span style={{ color: '#4A5A5E' }}>Qualification</span><span>{sel.qualification}</span>
+            <span style={{ color: '#4A5A5E' }}>Employed</span><span>{sel.employed}</span>
+          </div>
+          <div><div className="lbl">Motivation</div><p style={{ margin: 0, fontSize: 14, lineHeight: 1.55, background: '#F7F9F8', borderRadius: 8, padding: 12 }}>{sel.motivation}</p></div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div className="lbl" style={{ margin: 0 }}>Attachments</div>
+            {[[sel.id_file_path, 'ID document'], [sel.poa_file_path, 'Proof of address · ' + (sel.poa_type || '—')]].map((d) =>
+              <div key={d[1]} style={{ display: 'flex', alignItems: 'center', gap: 10, border: '1px solid #DDE3E1', borderRadius: 10, padding: '8px 12px' }}>
+                <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontWeight: 600, fontSize: 14 }}>{d[1]}</div><div style={{ fontSize: 12, color: '#4A5A5E', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d[0] || 'Not uploaded'}</div></div>
+                {d[0] && <button className="btn sm" onClick={() => openDoc(d[0])}>View</button>}</div>)}
+            {docMsg && <div className="notice n-warn">{docMsg}</div>}
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <button className="btn sm" onClick={() => upd(sel, { doc_status: 'Verified' }, 'Documents verified')}>Mark documents verified</button>
+              <button className="btn sm warn" onClick={() => upd(sel, { doc_status: 'Rejected' }, 'Documents rejected')}>Reject (e.g. affidavit)</button></div>
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', borderTop: '1px solid #DDE3E1', paddingTop: 14 }}>
+            <button className="btn" onClick={() => setView('select')}>Open scoresheet</button>
+            {!isPart(sel) && sel.s.eligible && <button className="btn p" onClick={() => accept(sel)}>Add to cohort</button>}
+            {isPart(sel) && <span className="badge b-teal">In cohort</span>}
+          </div>
+        </div>
+      </aside>}
+    </div>}
+
+    {view === 'select' && <Selection intake={intake} apps={apps} sel={sel} setSelId={setSelId} upd={upd} accept={accept} isPart={isPart} />}
+  </div>;
+}
+
+function Selection({ intake, apps, sel, setSelId, upd, accept, isPart }) {
+  const ranked = apps.filter((a) => a.s.eligible).sort((a, b) => b.s.total - a.s.total);
+  const cur = sel && sel.s.eligible ? sel : ranked[0];
+  const [comment, setComment] = useState('');
+  useEffect(() => { setComment(cur ? cur.panel_comment || '' : ''); }, [cur && cur.id]);
+  const rate = (field, n) => upd(cur, Object.assign({ [field]: n, scored_at: new Date().toISOString() }, cur.status === 'New' ? { status: 'Screened' } : {}));
+  return <div className="row">
+    <section className="card side" style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <h3 className="h" style={{ margin: 0, fontSize: 17 }}>Ranking · {intake.places} places</h3>
+      {ranked.map((a, k) => <div key={a.id}>
+        {k === intake.places && <div style={{ fontSize: 12, fontWeight: 700, color: '#8A3B06', margin: '6px 0' }}>— Places filled —</div>}
+        <button className={'rk' + (cur && a.id === cur.id ? ' on' : '')} onClick={() => setSelId(a.id)}>
+          <span style={{ fontWeight: 700, color: '#4A5A5E' }}>{k + 1}</span>
+          <span><span style={{ display: 'block', fontWeight: 600, fontSize: 14 }}>{a.full_name}</span><span style={{ display: 'block', fontSize: 12, color: '#4A5A5E' }}>{a.ref} · {a.s.band}</span></span>
+          <span className="h" style={{ fontSize: 20, fontWeight: 700 }}>{a.s.total}</span></button></div>)}
+      <div style={{ borderTop: '1px solid #DDE3E1', paddingTop: 10 }}>
+        <div className="lbl" style={{ fontSize: 13 }}>Not eligible — not ranked</div>
+        {apps.filter((a) => !a.s.eligible).map((a) => <div key={a.id} style={{ fontSize: 13, padding: '3px 0' }}>{a.full_name} — <span style={{ color: '#8F1D14' }}>{a.s.g.filter((g) => !g[1]).map((g) => g[2]).join(', ')}</span></div>)}
+      </div>
+    </section>
+    {cur && <section className="card grow" style={{ overflow: 'hidden' }}>
+      <div style={{ padding: '18px 24px', background: '#12343B', color: '#fff', display: 'flex', flexWrap: 'wrap', gap: 16, justifyContent: 'space-between', alignItems: 'center' }}>
+        <div><div style={{ fontSize: 13, color: '#A9C2BE' }}>Selection scoresheet · {cur.ref}</div><h3 className="h" style={{ margin: '4px 0', fontSize: 22 }}>{cur.full_name}</h3>
+          <div style={{ fontSize: 13, color: '#D6E4E1' }}>{cur.age} yrs · {cur.gender} · {cur.qualification} · Employed: {cur.employed}</div></div>
+        <div style={{ textAlign: 'right' }}><div className="h" style={{ fontSize: 42, fontWeight: 700, lineHeight: 1 }}>{cur.s.total}<span style={{ fontSize: 18, color: '#A9C2BE' }}>/100</span></div><div style={{ fontSize: 13, color: '#D6E4E1' }}>{cur.s.band}</div></div>
+      </div>
+      <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+        <div><h4 className="h" style={{ margin: '0 0 10px', fontSize: 16 }}>A. Entry requirements</h4>
+          <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: 8 }}>
+            {cur.s.g.map((g) => <div key={g[0]} style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '8px 12px', border: '1px solid #DDE3E1', borderRadius: 8, fontSize: 14 }}><span className={g[1] ? 'badge b-ok' : 'badge b-bad'}>{g[1] ? 'Pass' : 'Fail'}</span>{g[0]}</div>)}</div></div>
+        <div><h4 className="h" style={{ margin: '0 0 10px', fontSize: 16 }}>B. From the application (auto)</h4>
+          <div className="tbl"><table><tbody>
+            <tr><td>Employment status</td><td>{cur.employed}</td><td style={{ color: '#4A5A5E' }}>Unemployed = 30 · Employed = 0</td><td style={{ textAlign: 'right', fontWeight: 700 }}>{cur.s.emp} / 30</td></tr>
+            <tr><td>Highest qualification</td><td>{cur.qualification}</td><td style={{ color: '#4A5A5E' }}>Matric or higher = 20 · Gr 11 = 12 · Gr 10 / Other = 8</td><td style={{ textAlign: 'right', fontWeight: 700 }}>{cur.s.q} / 20</td></tr>
+          </tbody></table></div></div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <h4 className="h" style={{ margin: 0, fontSize: 16 }}>C. Panel rating (0 – 5)</h4>
+          <div><div className="lbl">Motivation statement <span style={{ float: 'right' }}>{cur.s.m} / 30</span></div><Rate label="Motivation" value={cur.panel_motivation} onPick={(n) => rate('panel_motivation', n)} /></div>
+          <div><div className="lbl">Interview / telephone screening <span style={{ float: 'right' }}>{cur.s.iv} / 20</span></div><Rate label="Interview" value={cur.panel_interview} onPick={(n) => rate('panel_interview', n)} /></div>
+          <div><label className="lbl" htmlFor="pc">Panel comments</label><textarea id="pc" className="inp" style={{ minHeight: 80 }} value={comment} onChange={(e) => setComment(e.target.value)} onBlur={() => comment !== (cur.panel_comment || '') && upd(cur, { panel_comment: comment })} /></div>
+        </div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', borderTop: '1px solid #DDE3E1', paddingTop: 16 }}>
+          <button className="btn" onClick={() => upd(cur, { status: 'Shortlisted' }, cur.full_name + ' shortlisted')}>Shortlist</button>
+          <button className="btn" onClick={() => upd(cur, { status: 'Reserve' }, cur.full_name + ' on reserve list')}>Reserve list</button>
+          <button className="btn warn" onClick={() => upd(cur, { status: 'Not successful' }, cur.full_name + ' marked not successful')}>Not successful</button>
+          {!isPart(cur) ? <button className="btn p" onClick={() => accept(cur)}>Add to cohort</button> : <span className="badge b-teal">In cohort</span>}
+        </div>
+        <p className="hint" style={{ margin: 0 }}>Selection weights are a draft — confirm them with programme management.</p>
+      </div>
+    </section>}
+  </div>;
+}
+
+// ===================================================================
+// 3. Daily scoresheet
+// ===================================================================
+function Daily({ intake, data, setData, setErr }) {
+  const [day, setDay] = useState(1);
+  const sess = data.sessions.find((s) => s.day_no === day);
+  const scoreOf = (pid) => sess && data.scores.find((x) => x.session_id === sess.id && x.participant_id === pid);
+  const hasData = (d) => { const s = data.sessions.find((x) => x.day_no === d); return s && data.scores.some((x) => x.session_id === s.id && x.present != null); };
+  const ensureSession = async (patch) => {
+    const s = await Y4C.saveSession(intake.id, day, Object.assign({ module: (sess && sess.module) || DAY_MOD[day - 1] }, patch || {}));
+    setData((d) => Object.assign({}, d, { sessions: d.sessions.filter((x) => x.day_no !== day).concat([s]) }));
+    return s;
+  };
+  const setScore = async (pid, patch) => {
+    try {
+      const s = sess || await ensureSession();
+      setData((d) => { const others = d.scores.filter((x) => !(x.session_id === s.id && x.participant_id === pid)); const old = d.scores.find((x) => x.session_id === s.id && x.participant_id === pid) || { session_id: s.id, participant_id: pid };
+        return Object.assign({}, d, { scores: others.concat([Object.assign({}, old, patch)]) }); });
+      await Y4C.saveScore(s.id, pid, patch);
+    } catch (e) { setErr(e.message); }
+  };
+  const allPresent = async () => { for (const p of data.parts) { const r = scoreOf(p.id); if (!r || r.present == null) await setScore(p.id, { present: true }); } };
+  const present = data.parts.filter((p) => { const r = scoreOf(p.id); return r && r.present; }).length;
+  const weekDate = intake['week' + Math.ceil(day / 5) + '_start'];
+  const suggested = weekDate ? addDays(D(weekDate), (day - 1) % 5) : null;
+  const iso = (d) => d ? d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0') : '';
+
+  if (!data.parts.length) return <div className="notice n-warn">No participants in this cohort yet. Add selected applicants to the cohort from Recruitment first.</div>;
+  return <div className="row">
+    <section className="card grow" style={{ overflow: 'hidden' }}>
+      <div style={{ background: '#12343B', color: '#fff', padding: '18px 24px', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
+        <div><div style={{ fontSize: 13, color: '#A9C2BE', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>Youth4Change Programme</div><h2 className="h" style={{ margin: '4px 0 0', fontSize: 22 }}>Daily Participation &amp; Engagement Scoresheet</h2></div>
+        <span className="badge b-teal">Day {day} · Week {Math.ceil(day / 5)}: {WEEKS[Math.ceil(day / 5) - 1]}</span>
+      </div>
+      <div style={{ padding: '18px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div><span className="lbl">Workshop day</span><div role="group" aria-label="Workshop day" style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {Array.from({ length: 15 }, (_, k) => k + 1).map((d) => <button key={d} className={'rate' + (d === day ? ' on' : hasData(d) ? ' done' : '')} aria-pressed={d === day} aria-label={'Day ' + d} onClick={() => setDay(d)}>{d}</button>)}</div>
+          <div className="hint">Teal outline = already captured.</div></div>
+        <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 14 }} key={intake.id + '-' + day}>
+          <div><label className="lbl" htmlFor="sd">Date</label><input id="sd" type="date" className="inp" defaultValue={(sess && sess.session_date) || iso(suggested)} onBlur={(e) => ensureSession({ session_date: e.target.value || null }).catch((x) => setErr(x.message))} /></div>
+          <div><label className="lbl" htmlFor="sf">Facilitator</label><input id="sf" className="inp" defaultValue={(sess && sess.facilitator) || ''} onBlur={(e) => ensureSession({ facilitator: e.target.value }).catch((x) => setErr(x.message))} /></div>
+          <div><label className="lbl" htmlFor="sw">Workshop</label><select id="sw" className="inp" defaultValue={(sess && sess.module) || DAY_MOD[day - 1]} onChange={(e) => ensureSession({ module: e.target.value }).catch((x) => setErr(x.message))}>{MODULES.map((m) => <option key={m}>{m}</option>)}</select></div>
+          <div><label className="lbl" htmlFor="sc">Cohort (quarter &amp; host town)</label><input id="sc" className="inp" readOnly value={intake.cohort + ': ' + intake.town} /></div>
+        </div>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}><button className="btn sm" onClick={allPresent}>Mark everyone present</button><span className="hint" style={{ margin: 0 }}>{present} present of {data.parts.length}</span></div>
+        <div className="tbl"><table><thead><tr><th>#</th><th>Beneficiary name</th><th>Attendance</th><th>Score (0–5)</th><th>Evidence note</th></tr></thead><tbody>
+          {data.parts.map((p, k) => { const r = scoreOf(p.id) || {};
+            return <tr key={p.id}><td>{k + 1}.</td><td style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>{p.full_name}</td>
+              <td style={{ whiteSpace: 'nowrap' }}><button className={'pill sm' + (r.present === true ? ' on' : '')} aria-pressed={r.present === true} onClick={() => setScore(p.id, { present: true })}>Present</button>{' '}
+                <button className={'pill sm' + (r.present === false ? ' off' : '')} aria-pressed={r.present === false} onClick={() => setScore(p.id, { present: false, score: null })}>Absent</button></td>
+              <td><Rate small label={'Score for ' + p.full_name} value={r.score} onPick={(n) => setScore(p.id, { score: n, present: true })} /></td>
+              <td style={{ minWidth: 200 }}><input className="inp" style={{ minHeight: 36, padding: '6px 10px', fontSize: 14 }} aria-label={'Evidence note for ' + p.full_name} defaultValue={r.note || ''} key={(sess ? sess.id : 'n') + p.id} onBlur={(e) => e.target.value !== (r.note || '') && setScore(p.id, { note: e.target.value })} /></td></tr>; })}
+        </tbody></table></div>
+      </div>
+    </section>
+    <aside className="card side" style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <h3 className="h" style={{ margin: 0, fontSize: 17 }}>Facilitator rubric</h3>
+      {RUBRIC.map((b) => <div key={b[0]} style={{ border: '1px solid #DDE3E1', borderRadius: 10, padding: '10px 12px' }}>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}><span className="badge b-teal">{b[0]}</span><strong style={{ fontSize: 14 }}>{b[1]}</strong></div>
+        <div style={{ fontSize: 13, color: '#33464A', marginTop: 4 }}>{b[2]}</div><div style={{ fontSize: 12, color: '#4A5A5E' }}>{b[3]}</div></div>)}
+    </aside>
+  </div>;
+}
+
+// ===================================================================
+// 4. Scoretracker
+// ===================================================================
+function Tracker({ intake, data, run }) {
+  const tr = useTracker(intake, data);
+  const [selId, setSelId] = useState(null);
+  const cur = tr.rows.find((r) => r.p.id === selId) || tr.rows[0];
+  const upd = (patch, msg) => run(() => Y4C.updateParticipant(cur.p.id, patch), msg);
+  const campN = data.parts.filter((p) => p.camp_selected).length;
+  const exportCsv = () => csvDownload('Y4C_scoretracker_' + intake.town + '_' + intake.cohort + intake.cal_year + '.csv',
+    [['Rank', 'Beneficiary', 'Attendance /15', 'Rubric total', 'Punctuality /5'].concat(MODULES.map((m) => m + ' /5')).concat(['Licence /15', 'Conduct /10', 'Bonus /20', 'Total', 'Flag', 'Camp selected', 'Intervention'])]
+      .concat(tr.rows.map((r) => [r.rank, r.p.full_name, r.att, r.rub, r.p.punctuality].concat(r.modRows.map((m) => m.pts)).concat([r.p.licence_points, r.cond, r.bonus, r.total, r.flag[0], r.p.camp_selected ? 'Yes' : 'No', r.p.intervention]))));
+  if (!data.parts.length) return <div className="notice n-warn">No participants in this cohort yet.</div>;
+  return <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+    <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))' }}>
+      <Kpi label="Active participants" value={tr.rows.filter((r) => !r.exited).length + ' / ' + intake.places} sub={intakeName(intake)} />
+      <Kpi label="Attendance rate" value={tr.attRate + '%'} sub={tr.daysDone + ' of 15 days captured'} />
+      <Kpi label="Average engagement" value={tr.avgPart} sub="Rubric score out of 5" />
+      <Kpi label="At risk" value={tr.rows.filter((r) => r.flag[0] === 'At risk').length} sub="More than 2 sessions missed in a row" />
+      <Kpi label="Soetwater Youth Camp" value={campN + ' / ' + intake.camp_places} sub="Selected in November" />
+    </div>
+    <div className="row">
+      <section className="card grow" style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', gap: 10, alignItems: 'center' }}>
+          <h2 className="h" style={{ margin: 0, fontSize: 19 }}>Beneficiary Scoretracker</h2><button className="btn sm" onClick={exportCsv}>Export CSV</button></div>
+        <div className="tbl"><table><thead><tr><th>Rank</th><th>Beneficiary</th><th>Attend. /15</th><th>Rubric</th><th>Punct. /5</th><th>Modules /30</th><th>Licence /15</th><th>Conduct /10</th><th>Bonus /20</th><th>Total</th><th>Flag</th></tr></thead>
+          <tbody>{tr.rows.map((r) => <tr key={r.p.id} className={cur && r.p.id === cur.p.id ? 'sel' : ''}>
+            <td style={{ fontWeight: 700, color: '#4A5A5E' }}>{r.rank}</td><td style={{ whiteSpace: 'nowrap' }}><button className="linkbtn" onClick={() => setSelId(r.p.id)}>{r.p.full_name}</button></td>
+            <td>{r.att}</td><td>{r.rub}</td><td>{r.p.punctuality}</td><td>{r.mods}</td><td>{r.p.licence_points}</td><td>{r.p.conduct_behaviour == null && r.p.conduct_teamwork == null ? '—' : r.cond}</td><td>{r.bonus}</td>
+            <td style={{ fontWeight: 700 }}>{r.total}</td><td><span className={r.flag[1]}>{r.flag[0]}</span></td></tr>)}</tbody></table></div>
+        <p className="hint" style={{ margin: 0 }}>Attendance, rubric and workshop completion come from the Daily scoresheets. Rubric = total of daily scores, as in the scoretracker template.</p>
+      </section>
+      {cur && <aside className="card side" style={{ overflow: 'hidden' }} key={cur.p.id}>
+        <div style={{ padding: '16px 20px', background: '#F7F9F8', borderBottom: '1px solid #DDE3E1' }}>
+          <div style={{ fontSize: 13, color: '#4A5A5E' }}>Rank {cur.rank} · {cur.total} points</div>
+          <h3 className="h" style={{ margin: '2px 0 6px', fontSize: 21 }}>{cur.p.full_name}</h3><span className={cur.flag[1]}>{cur.flag[0]}</span></div>
+        <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div><div className="lbl">1) Attendance &amp; participation</div>
+            <div style={{ fontSize: 14 }}>Days attended: <strong>{cur.att} / 15</strong> · Rubric total: <strong>{cur.rub}</strong></div>
+            <div className="lbl" style={{ marginTop: 8, fontWeight: 500 }}>Punctuality &amp; behaviour (0 = late / bad behaviour · 5 = on time / well behaved)</div>
+            <Rate label="Punctuality" value={cur.p.punctuality} onPick={(n) => upd({ punctuality: n })} /></div>
+          <div><div className="lbl">2) Workshop completion (0 = absent · 5 = 100%)</div>
+            {cur.modRows.map((m) => <div key={m.m} style={{ display: 'grid', gridTemplateColumns: '1fr 100px 24px', gap: 10, alignItems: 'center', fontSize: 14, padding: '2px 0' }}>
+              <span>{m.m}</span><div style={{ height: 8, background: '#EEF2F1', borderRadius: 4 }}><div style={{ height: 8, background: '#0F766E', borderRadius: 4, width: m.pct + '%' }} /></div><strong>{m.held ? m.pts : '—'}</strong></div>)}</div>
+          <div><label className="lbl" htmlFor="lic">3) Driver's licence progress</label>
+            <select id="lic" className="inp" value={cur.p.licence_points} onChange={(e) => upd({ licence_points: +e.target.value })}>{LIC.map((l) => <option key={l[0]} value={l[0]}>{l[1]}</option>)}</select></div>
+          <div><div className="lbl">4) Conduct &amp; growth (last week)</div>
+            <div style={{ fontSize: 13, marginBottom: 4 }}>Behaviour change / soft skills improvement</div><Rate label="Behaviour change" value={cur.p.conduct_behaviour} onPick={(n) => upd({ conduct_behaviour: n })} />
+            <div style={{ fontSize: 13, margin: '8px 0 4px' }}>Contribution to group / teamwork / leadership</div><Rate label="Teamwork" value={cur.p.conduct_teamwork} onPick={(n) => upd({ conduct_teamwork: n })} /></div>
+          <div><div className="lbl">5) Extra mile / bonus (5 points each)</div>
+            {BONUS.map((b) => <label key={b[0]} style={{ display: 'flex', gap: 10, alignItems: 'center', minHeight: 34, fontSize: 14, cursor: 'pointer' }}><input type="checkbox" className="chk" checked={!!cur.p[b[0]]} onChange={() => upd({ [b[0]]: !cur.p[b[0]] })} />{b[1]}</label>)}</div>
+          <div style={{ borderTop: '1px solid #DDE3E1', paddingTop: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <label style={{ display: 'flex', gap: 10, alignItems: 'center', fontWeight: 600, fontSize: 14 }}><input type="checkbox" className="chk" checked={cur.p.camp_selected} onChange={() => upd({ camp_selected: !cur.p.camp_selected }, cur.p.camp_selected ? 'Removed from camp list' : cur.p.full_name + ' selected for Soetwater')} />Selected for Soetwater Youth Camp</label>
+            <div><label className="lbl" htmlFor="iv">Exit intervention stage</label>
+              <select id="iv" className="inp" value={cur.p.intervention} onChange={(e) => upd({ intervention: e.target.value })}>
+                {['None', '1st — one-on-one', '2nd — formal warning', 'Exited'].map((x) => <option key={x}>{x}</option>)}</select>
+              <div className="hint">{cur.maxRun > 2 ? 'Missed ' + cur.maxRun + ' sessions in a row — the exit process applies.' : cur.maxRun === 2 ? 'Missed 2 sessions in a row — one more triggers the exit process.' : 'No attendance concern.'}</div></div>
+          </div>
+        </div>
+      </aside>}
+    </div>
+  </div>;
+}
+
+// ===================================================================
+// 5. Feedback
+// ===================================================================
+function Feedback({ intake, data }) {
+  const fb = data.feedback, url = Y4C.baseUrl() + 'feedback.html?intake=' + intake.id;
+  const exportCsv = () => csvDownload('Y4C_feedback_' + intake.town + '_' + intake.cohort + intake.cal_year + '.csv',
+    [['Date', 'First name', 'Surname', 'Gender', 'Area', 'Content /10', 'Facilitators /10', 'Could be improved', 'Anything to add']].concat(fb.map((f) => [(f.created_at || '').slice(0, 10), f.first_name, f.surname, f.gender, f.area, f.rating_content, f.rating_facilitator, f.improve, f.additional])));
+  return <div className="row">
+    <section className="card grow" style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}><h2 className="h" style={{ margin: 0, fontSize: 19 }}>Feedback responses · {intake.town} {intake.cohort} {intake.cal_year}</h2><button className="btn sm" onClick={exportCsv}>Export CSV</button></div>
+      <div className="grid" style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
+        <Kpi label="Responses" value={fb.length} sub={'of ' + data.parts.length + ' participants'} />
+        <Kpi label="Course content" value={fb.length ? avg(fb.map((f) => f.rating_content || 0)).toFixed(1) : '—'} sub="Average out of 10" />
+        <Kpi label="Facilitators" value={fb.length ? avg(fb.map((f) => f.rating_facilitator || 0)).toFixed(1) : '—'} sub="Average out of 10" />
+      </div>
+      <div className="tbl"><table><thead><tr><th>Name</th><th>Area</th><th>Content</th><th>Facilitators</th><th>Could be improved</th><th>Anything to add</th></tr></thead>
+        <tbody>{fb.map((f) => <tr key={f.id}><td style={{ whiteSpace: 'nowrap' }}>{f.first_name} {f.surname}</td><td>{f.area}</td><td>{f.rating_content}</td><td>{f.rating_facilitator}</td><td>{f.improve}</td><td>{f.additional}</td></tr>)}</tbody></table></div>
+      {!fb.length && <p className="hint">No feedback yet for this cohort.</p>}
+    </section>
+    <div className="side"><ShareBox title="Share the feedback form" fileName={'Y4C_feedback_' + intake.town + '_' + intake.cohort + intake.cal_year}
+      intro="Send to participants in class via the cohort WhatsApp group on the last day, or show the QR code on screen." url={url}
+      whatsapp={'Youth4Change ' + intake.town + ': please tell us what you thought of the programme'} /></div>
+  </div>;
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
