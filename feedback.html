@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Youth4Change Programme Feedback</title>
+<link rel="stylesheet" href="assets/styles.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script src="assets/db.js"></script>
+<style>
+  .wrap{max-width:760px;margin:0 auto;padding:16px}
+  .two{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px}
+  .opts{display:flex;flex-wrap:wrap;gap:8px}
+  .opts label{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:8px 14px;border:1px solid #B9C4C1;border-radius:999px;cursor:pointer;font-size:15px;background:#fff}
+  .opts input{accent-color:#0F766E;width:18px;height:18px}
+  .scale{display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:4px;max-width:520px}
+  .scale label{display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 0;border:1px solid #B9C4C1;border-radius:8px;cursor:pointer;font-weight:600;font-size:14px;background:#fff}
+  .scale input{accent-color:#0F766E}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card" style="overflow:hidden">
+    <div style="background:#12343B;color:#fff;padding:24px">
+      <div style="font-size:13px;color:#A9C2BE;font-weight:600;letter-spacing:.04em;text-transform:uppercase">End of programme</div>
+      <h1 class="h" style="margin:6px 0 0;font-size:26px">Youth4Change Programme Feedback: <span class="js-town">…</span></h1>
+      <p style="margin:10px 0 0;font-size:14px;color:#D6E4E1">Thank you for attending the Youth4Change programme. We trust this experience was deeply valuable to you; however, if you feel we could improve in any way, please use this form to tell us how! Your feedback helps us improve all of our future programme implementations.</p>
+    </div>
+    <div id="demo" class="notice n-warn" style="display:none;margin:16px 24px 0">Demo mode — not connected to the database yet.</div>
+    <div id="closed" class="notice n-bad" style="display:none;margin:24px"></div>
+    <div id="done" style="display:none;padding:32px 24px"><span class="badge b-ok">Feedback received</span><h2 class="h" style="margin:12px 0 0;font-size:22px">Thank you for your feedback!</h2></div>
+
+    <form id="f" novalidate style="padding:24px;display:flex;flex-direction:column;gap:22px">
+      <div class="h" style="font-weight:700;font-size:17px">Personal details</div>
+      <div class="two">
+        <div><label class="lbl" for="first_name">1. First name <span class="req">*</span></label><input class="inp" id="first_name" name="first_name" autocomplete="given-name"></div>
+        <div><label class="lbl" for="surname">2. Surname <span class="req">*</span></label><input class="inp" id="surname" name="surname" autocomplete="family-name"></div>
+      </div>
+      <div><span class="lbl">3. Gender <span class="req">*</span></span><div class="opts">
+        <label><input type="radio" name="gender" value="Female"> Female</label><label><input type="radio" name="gender" value="Male"> Male</label><label><input type="radio" name="gender" value="Non-binary"> Non-binary</label><label><input type="radio" name="gender" value="Prefer not to say"> Prefer not to say</label></div></div>
+      <div><span class="lbl">4. Which of the following areas do you reside in? <span class="req">*</span></span><div class="opts">
+        <label><input type="radio" name="area" value="__town" id="area_town"> <span class="js-town">…</span></label><label><input type="radio" name="area" value="__other"> Other:</label>
+        <label class="sr" for="area_other">Other area</label><input class="inp" id="area_other" style="max-width:240px" placeholder="Other area"></div></div>
+      <div><span class="lbl" id="l5">5. How would you rate the course content? <span class="req">*</span></span><div class="hint" style="margin:0 0 8px">1 = Poor · 5 = Good · 10 = Excellent</div><div class="scale" role="radiogroup" aria-labelledby="l5" id="s_content"></div></div>
+      <div><span class="lbl" id="l6">6. How would you rate the course facilitator(s)? <span class="req">*</span></span><div class="hint" style="margin:0 0 8px">1 = Poor · 5 = Good · 10 = Excellent</div><div class="scale" role="radiogroup" aria-labelledby="l6" id="s_fac"></div></div>
+      <div><label class="lbl" for="improve">7. Is there anything you think could be improved on across the course content, programme facilitation, or facilitators?</label><textarea class="inp" id="improve" name="improve"></textarea></div>
+      <div><label class="lbl" for="additional">8. Is there anything you'd like to add about your experience in the programme?</label><textarea class="inp" id="additional" name="additional"></textarea></div>
+      <div style="border:1px solid #CFE3DF;background:#F1F8F6;border-radius:10px;padding:16px;font-size:14px;line-height:1.55">
+        <div class="h" style="font-weight:700;margin-bottom:6px">Acknowledgement — 9. Declaration <span class="req">*</span></div>
+        <p style="margin:0 0 6px">By submitting this form, I declare the following:</p>
+        <p style="margin:0 0 6px"><strong>Personal information collected here will be used solely for identification of Youth4Change participants' responses, in accordance with POPIA (Protection of Personal Information Act).</strong></p>
+        <p style="margin:0 0 6px"><strong>Accuracy of Information:</strong> I hereby confirm that all information provided herein is true and accurate to the best of my knowledge and belief. I understand that this information is important and will be materially considered during the evaluation of the programme.</p>
+        <p style="margin:0 0 10px"><strong>Notification of Changes:</strong> I agree to notify the relevant parties of any changes affecting the information provided within ten (10) days of such change.</p>
+        <label style="display:flex;gap:10px;align-items:flex-start;min-height:44px;font-weight:600;cursor:pointer"><input type="checkbox" class="chk" name="declaration"> Please tick the box to confirm you have read and understood the declaration and terms above.</label>
+      </div>
+      <div id="errors" class="notice n-bad" role="alert" style="display:none"></div>
+      <div><button class="btn p" type="submit" id="submit">Submit feedback</button></div>
+    </form>
+  </div>
+</div>
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); }, form = $('f'), intake = null;
+  if (Y4C.mode === 'demo') $('demo').style.display = 'block';
+  ['s_content', 's_fac'].forEach(function (id) {
+    var h = ''; for (var n = 1; n <= 10; n++) h += '<label><input type="radio" name="' + id + '" value="' + n + '">' + n + '</label>';
+    $(id).innerHTML = h;
+  });
+  function closed(m) { form.style.display = 'none'; $('closed').textContent = m; $('closed').style.display = 'block'; }
+  Y4C.intakes().then(function (list) {
+    var want = new URLSearchParams(location.search).get('intake');
+    intake = list.filter(function (i) { return i.id === want; })[0];
+    if (!intake) return closed('This feedback link is not complete. Please use the link or QR code your facilitator shared.');
+    document.querySelectorAll('.js-town').forEach(function (e) { e.textContent = intake.town; });
+  }).catch(function (e) { closed('The form could not load. (' + e.message + ')'); });
+  var radio = function (n) { var e = form.querySelector('input[name="' + n + '"]:checked'); return e ? e.value : ''; };
+  form.addEventListener('submit', async function (ev) {
+    ev.preventDefault();
+    var area = radio('area') === '__town' ? intake.town : radio('area') === '__other' ? $('area_other').value.trim() : '';
+    var err = [];
+    if (!$('first_name').value.trim()) err.push('First name');
+    if (!$('surname').value.trim()) err.push('Surname');
+    if (!radio('gender')) err.push('Gender');
+    if (!area) err.push('Area you live in');
+    if (!radio('s_content')) err.push('Rating for course content');
+    if (!radio('s_fac')) err.push('Rating for facilitator(s)');
+    if (!form.elements.declaration.checked) err.push('Tick the declaration');
+    if (err.length) { $('errors').innerHTML = '<strong>Please complete:</strong> ' + err.join(', '); $('errors').style.display = 'block'; return; }
+    var btn = $('submit'); btn.disabled = true; btn.textContent = 'Submitting…';
+    try {
+      await Y4C.submitFeedback({ intake_id: intake.id, first_name: $('first_name').value.trim(), surname: $('surname').value.trim(), gender: radio('gender'), area: area,
+        rating_content: radio('s_content'), rating_facilitator: radio('s_fac'), improve: $('improve').value.trim(), additional: $('additional').value.trim(), declaration: true });
+      form.style.display = 'none'; $('done').style.display = 'block'; window.scrollTo(0, 0);
+    } catch (e) { $('errors').textContent = 'Could not send: ' + e.message; $('errors').style.display = 'block'; btn.disabled = false; btn.textContent = 'Submit feedback'; }
+  });
+})();
+</script>
+</body>
+</html>

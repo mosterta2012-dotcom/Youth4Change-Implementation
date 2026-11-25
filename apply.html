@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Youth4Change Skills Development Opportunity — Application</title>
+<link rel="stylesheet" href="assets/styles.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script src="assets/db.js"></script>
+<style>
+  .wrap{max-width:760px;margin:0 auto;padding:16px}
+  fieldset{border:0;padding:0;margin:0;display:flex;flex-direction:column;gap:16px}
+  legend{font-family:'Space Grotesk',Inter,sans-serif;font-size:18px;font-weight:700;color:#12343B;margin-bottom:12px}
+  .two{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px}
+  .opts{display:flex;flex-wrap:wrap;gap:8px}
+  .opts label{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:8px 14px;border:1px solid #B9C4C1;border-radius:999px;cursor:pointer;font-size:15px;background:#fff}
+  .opts input{accent-color:#0F766E;width:18px;height:18px}
+  .checkline{display:flex;align-items:flex-start;gap:10px;min-height:44px;font-size:15px;cursor:pointer}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card" style="overflow:hidden">
+    <div style="background:#12343B;color:#fff;padding:24px">
+      <div style="font-size:13px;color:#A9C2BE;font-weight:600;letter-spacing:.04em;text-transform:uppercase" id="hdr-sub">Application form</div>
+      <h1 class="h" style="margin:6px 0 0;font-size:26px">Youth4Change Skills Development Opportunity</h1>
+      <div style="margin-top:8px;font-size:14px;color:#D6E4E1">Angels Resource Centres · Fields marked <span style="color:#FFB4AB">*</span> are required.</div>
+    </div>
+    <div id="demo" class="notice n-warn" style="display:none;margin:16px 24px 0">Demo mode — this form is not connected to the database yet. Answers are saved in this browser only.</div>
+    <div id="closed" class="notice n-bad" style="display:none;margin:24px"></div>
+    <div id="done" style="display:none;padding:32px 24px">
+      <span class="badge b-ok">Application received</span>
+      <h2 class="h" style="margin:12px 0 8px;font-size:22px">Thank you. Your reference number is <span id="ref"></span>.</h2>
+      <p style="margin:0;font-size:15px;color:#33464A">Please keep this number. The programme team will contact you on the number you gave us. Successful candidates are told via WhatsApp before the programme starts.</p>
+    </div>
+
+    <form id="f" novalidate style="padding:24px;display:flex;flex-direction:column;gap:28px">
+      <div style="border:1px solid #CFE3DF;background:#F1F8F6;border-radius:10px;padding:18px">
+        <div class="h" style="font-weight:700;font-size:17px;margin-bottom:10px">Only apply for this opportunity if you meet all the following criteria <span class="req">*</span></div>
+        <ul style="margin:0 0 12px;padding-left:20px;font-size:15px;line-height:1.6">
+          <li>South African youth (only ages 18–35 years will be considered)</li>
+          <li>Must live in <span class="js-town">the host town</span>, Northern Cape</li>
+          <li id="weeks-li">You can attend all three workshop weeks (09h00 – 16h00 daily, all 5 days of each week)</li>
+          <li>You have not taken part in the Youth4Change programme before (previously unsuccessful applicants may apply again)</li>
+          <li>No qualifications are required, but Matric will be an advantage</li>
+        </ul>
+        <p style="margin:0 0 6px;font-size:14px"><strong>Please note:</strong> Preference will be given to unemployed youth.</p>
+        <p style="margin:0 0 12px;font-size:14px">ID document and proof of address are required (e.g. municipal account or bank statement — no affidavits allowed).</p>
+        <label class="checkline" style="font-weight:600"><input type="checkbox" class="chk" name="criteria_understood"> I have read and understood</label>
+      </div>
+
+      <fieldset>
+        <legend>Section 1: Personal information</legend>
+        <div><label class="lbl" for="full_name">1. Full name &amp; surname <span class="req">*</span></label><input class="inp" id="full_name" name="full_name" autocomplete="name"></div>
+        <div class="two">
+          <div><label class="lbl" for="id_number">2. ID number <span class="req">*</span></label><input class="inp" id="id_number" name="id_number" inputmode="numeric" maxlength="13"><div class="hint" id="id_hint">13-digit South African ID number</div></div>
+          <div><label class="lbl" for="age">3. Age <span class="req">*</span></label><input class="inp" id="age" name="age" readonly><div class="hint">Worked out from your ID number</div></div>
+        </div>
+        <div><span class="lbl">4. Gender <span class="req">*</span></span><div class="opts" role="radiogroup">
+          <label><input type="radio" name="gender" value="Male"> Male</label><label><input type="radio" name="gender" value="Female"> Female</label><label><input type="radio" name="gender" value="Prefer not to say"> Prefer not to say</label></div></div>
+        <div class="two">
+          <div><label class="lbl" for="phone">5. Contact number <span class="req">*</span></label><input class="inp" id="phone" name="phone" type="tel" autocomplete="tel"></div>
+          <div><label class="lbl" for="email">6. Email address <span class="req">*</span></label><input class="inp" id="email" name="email" type="email" autocomplete="email"></div>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Section 2: Location details</legend>
+        <div class="two">
+          <div><label class="lbl" for="municipality">7. Municipality <span class="req">*</span></label><select class="inp" id="municipality" name="municipality"><option value="">Select…</option></select></div>
+          <div><label class="lbl" for="town">8. Town <span class="req">*</span></label><select class="inp" id="town" name="town"><option value="">Select…</option></select></div>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Section 3: Education and employment</legend>
+        <div><span class="lbl">9. Highest qualification <span class="req">*</span></span><div class="opts" role="radiogroup">
+          <label><input type="radio" name="qualification" value="Grade 10"> Grade 10</label><label><input type="radio" name="qualification" value="Grade 11"> Grade 11</label><label><input type="radio" name="qualification" value="Grade 12 / Matric"> Grade 12 / Matric</label><label><input type="radio" name="qualification" value="Diploma / Certificate"> Diploma / Certificate</label><label><input type="radio" name="qualification" value="Degree"> Degree</label><label><input type="radio" name="qualification" value="Other"> Other</label></div></div>
+        <div><span class="lbl">10. Are you currently employed? <span class="req">*</span></span><div class="opts" role="radiogroup">
+          <label><input type="radio" name="employed" value="Yes"> Yes</label><label><input type="radio" name="employed" value="No"> No</label></div></div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Section 4: Motivation</legend>
+        <div><label class="lbl" for="motivation">11. Why do you want to join the Youth4Change Programme? <span class="req">*</span></label><textarea class="inp" id="motivation" name="motivation"></textarea></div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Section 5: Document uploads</legend>
+        <div><label class="lbl" for="id_file">12. Upload a copy of your ID <span class="req">*</span></label><div class="file"><input type="file" id="id_file" accept=".pdf,.jpg,.jpeg,.png,.heic,.webp,image/*"><span class="hint" style="margin:0">PDF or photo, max 10 MB</span></div></div>
+        <div><span class="lbl">13. Proof of address <span class="req">*</span></span>
+          <div class="opts" role="radiogroup" style="margin-bottom:10px"><label><input type="radio" name="poa_type" value="Municipal account"> Municipal account</label><label><input type="radio" name="poa_type" value="Bank statement"> Bank statement</label></div>
+          <label class="sr" for="poa_file">Upload proof of address</label>
+          <div class="file"><input type="file" id="poa_file" accept=".pdf,.jpg,.jpeg,.png,.heic,.webp,image/*"><span class="hint" style="margin:0">Affidavits are not accepted</span></div></div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Section 6: Declaration</legend>
+        <label class="checkline"><input type="checkbox" class="chk" name="decl_true"> I confirm that the information provided is true and correct to the best of my knowledge. <span class="req">*</span></label>
+        <label class="checkline"><input type="checkbox" class="chk" name="decl_consent"> I consent to my information being used for recruitment and training purposes, in line with POPIA. <span class="req">*</span></label>
+        <p class="hint" style="margin:0">By submitting you accept the programme <a href="terms.html" target="_blank" rel="noopener">Terms &amp; Conditions</a>. Date completed is recorded automatically.</p>
+      </fieldset>
+
+      <div id="errors" class="notice n-bad" role="alert" style="display:none"></div>
+      <div><button class="btn p" type="submit" id="submit">Submit application</button></div>
+    </form>
+  </div>
+  <p style="text-align:center;font-size:12px;color:#4A5A5E">Angels Resource Centres · Youth4Change is funded by Scatec</p>
+</div>
+
+<script>
+(function () {
+  var form = document.getElementById('f'), intake = null;
+  var $ = function (id) { return document.getElementById(id); };
+  var MON = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  var d = function (s) { var p = s.split('-'); return new Date(+p[0], +p[1] - 1, +p[2]); };
+  var wk = function (s) { var a = d(s), b = new Date(a); b.setDate(b.getDate() + 4); return a.getDate() + '–' + b.getDate() + ' ' + MON[b.getMonth()]; };
+  if (Y4C.mode === 'demo') $('demo').style.display = 'block';
+
+  function closed(msg) { form.style.display = 'none'; $('closed').textContent = msg; $('closed').style.display = 'block'; }
+
+  Y4C.intakes().then(function (list) {
+    var want = new URLSearchParams(location.search).get('intake');
+    intake = list.filter(function (i) { return want ? i.id === want : i.status === 'recruiting'; })[0];
+    if (!intake) return closed('There is no open Youth4Change intake at the moment. Please check the poster or ask the Angels team for the latest link.');
+    if (intake.status !== 'recruiting') return closed('Applications for Youth4Change ' + intake.town + ' are not open at the moment.');
+    if (intake.applications_close && new Date() > new Date(d(intake.applications_close).getTime() + 864e5)) return closed('Applications for Youth4Change ' + intake.town + ' closed on ' + d(intake.applications_close).getDate() + ' ' + MON[d(intake.applications_close).getMonth()] + '.');
+    $('hdr-sub').textContent = 'Application form · ' + intake.town + ' · ' + intake.cohort + ' ' + intake.cal_year;
+    document.querySelectorAll('.js-town').forEach(function (e) { e.textContent = intake.town; });
+    if (intake.week1_start) $('weeks-li').textContent = 'You can attend all three workshop weeks: ' + wk(intake.week1_start) + ', ' + wk(intake.week2_start) + ' and ' + wk(intake.week3_start) + ' ' + intake.cal_year + ' (09h00 – 16h00 daily, all 5 days of each week)';
+    $('municipality').add(new Option(intake.municipality || (intake.town + ' Municipality')));
+    $('town').add(new Option(intake.town));
+  }).catch(function (e) { closed('The form could not load. Please try again later. (' + e.message + ')'); });
+
+  $('id_number').addEventListener('input', function () {
+    var v = this.value.replace(/\D/g, ''); this.value = v;
+    var r = Y4C.parseSAID(v);
+    $('age').value = r.ok ? r.age : '';
+    $('id_hint').textContent = !v ? '13-digit South African ID number' : v.length < 13 ? 'Keep typing — 13 digits needed' : r.ok ? 'Valid ID number · age ' + r.age + (r.age < 18 || r.age > 35 ? ' — outside the 18–35 age band' : '') : 'This ID number does not pass the check — please re-check';
+  });
+
+  function val(n) { var e = form.elements[n]; if (!e) return ''; if (e.type === 'checkbox') return e.checked; return (e.value || '').trim(); }
+  function radio(n) { var e = form.querySelector('input[name="' + n + '"]:checked'); return e ? e.value : ''; }
+
+  form.addEventListener('submit', async function (ev) {
+    ev.preventDefault();
+    var idr = Y4C.parseSAID(val('id_number')), idF = $('id_file').files[0], poaF = $('poa_file').files[0], err = [];
+    if (!val('criteria_understood')) err.push('Confirm you have read and understood the criteria');
+    if (!val('full_name')) err.push('Full name & surname');
+    if (!idr.ok) err.push('A valid 13-digit ID number');
+    if (!radio('gender')) err.push('Gender');
+    if (!val('phone')) err.push('Contact number');
+    if (!/^\S+@\S+\.\S+$/.test(val('email'))) err.push('A valid email address');
+    if (!val('municipality')) err.push('Municipality');
+    if (!val('town')) err.push('Town');
+    if (!radio('qualification')) err.push('Highest qualification');
+    if (!radio('employed')) err.push('Employment status');
+    if (!val('motivation')) err.push('Motivation');
+    if (!idF) err.push('Copy of your ID');
+    if (!radio('poa_type')) err.push('Type of proof of address');
+    if (!poaF) err.push('Proof of address upload');
+    [idF, poaF].forEach(function (f) { if (f && f.size > 10485760) err.push(f.name + ' is larger than 10 MB'); });
+    if (!val('decl_true') || !val('decl_consent')) err.push('Both declaration boxes');
+    if (err.length) { $('errors').innerHTML = '<strong>Please complete the following:</strong><ul style="margin:6px 0 0;padding-left:20px">' + err.map(function (e) { return '<li>' + e.replace(/</g, '&lt;') + '</li>'; }).join('') + '</ul>'; $('errors').style.display = 'block'; $('errors').scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
+    $('errors').style.display = 'none';
+    var btn = $('submit'); btn.disabled = true; btn.textContent = 'Uploading documents…';
+    try {
+      var idPath = await Y4C.uploadDoc(idF, 'id'), poaPath = await Y4C.uploadDoc(poaF, 'proof_of_address');
+      btn.textContent = 'Submitting…';
+      var ref = await Y4C.submitApplication({
+        intake_id: intake.id, full_name: val('full_name'), id_number: val('id_number'), age: String(idr.age), gender: radio('gender'),
+        phone: val('phone'), email: val('email'), municipality: val('municipality'), town: val('town'), qualification: radio('qualification'),
+        employed: radio('employed'), motivation: val('motivation'), poa_type: radio('poa_type'), id_file_path: idPath, poa_file_path: poaPath,
+        criteria_understood: true, decl_true: true, decl_consent: true
+      });
+      form.style.display = 'none'; $('ref').textContent = ref; $('done').style.display = 'block'; window.scrollTo(0, 0);
+    } catch (e) {
+      $('errors').textContent = 'Sorry, your application could not be sent: ' + e.message + '. Please try again.'; $('errors').style.display = 'block';
+      btn.disabled = false; btn.textContent = 'Submit application';
+    }
+  });
+})();
+</script>
+</body>
+</html>
